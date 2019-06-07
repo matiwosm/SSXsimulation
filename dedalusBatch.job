@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH -p RM
+#SBATCH -t 50:00:00
+#SBATCH -N 6
+#SBATCH --ntasks-per-node 28
+
+#echo commands to stdout
+set -x
+
+export I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0
+
+#activate dedalus
+source /home/nanders4/dedalus/bin/activate
+
+#run mpi program
+#cd /pylon5/tr8r71p/nanders4
+mpirun -np $SLURM_NTASKS python3 SSX_model_A.py
+#merge files
+python3 merge1.py fields2/
+python3 merge2.py mergedOut.h5 fields2/

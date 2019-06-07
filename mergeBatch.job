@@ -1,0 +1,14 @@
+#!/bin/bash
+#SBATCH -t 01:00:00
+#SBATCH -N 1
+#SBATCH --ntasks-per-node 28
+
+#activate dedalus
+source /home/nanders4/dedalus/bin/activate
+
+
+#run mpi program
+cd /pylon5/tr8r71p/nanders4
+python3 merge1.py fields2 --cleanup
+python3 merge2.py merged2.h5 fields2/ --cleanup
+
