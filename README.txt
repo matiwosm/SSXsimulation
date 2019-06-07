@@ -76,6 +76,11 @@ Options:
 joint_path is file name of finished, merged file
 set_path is a directory containing files to be merged
 
+***Merging***
+The two merging scripts work, but there is now dedalus wrappers that run the merging:
+dedalus merge_procs <base_path> [--cleanup]
+dedalus merge_sets <joint_path> <set_path>... [--cleanup]
+
 ===toVapor.py===
 Script to create a VAPOR-readable .vdf file from an h5 file produced by Dedalus. Uses netCDF as an intermediate format.
 Pulls all variables output by Dedalus and captures time evolution if present.
