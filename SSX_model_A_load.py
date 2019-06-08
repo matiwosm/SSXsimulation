@@ -1,7 +1,7 @@
 """SSX_model_A.py
 
 Usage:
-    SSX_model_A_load.py <fileIn> <initStep>
+    SSX_model_A_load.py <fileIn>
 
 This is the *simplest* model we will consider for modelling spheromaks evolving in the SSX wind tunnel.
 
