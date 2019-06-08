@@ -51,9 +51,9 @@ args = docopt(__doc__)
 # for optimal efficiency: nx should be divisible by mesh[0], ny by mesh[1], and
 # nx should be close to ny. Bridges nodes have 28 cores, so mesh[0]*mesh[1]
 # should be a multiple of 28.
-nx = 28
-ny = 24
-nz = 180
+nx = 28*3
+ny = 24*3
+nz = 180*3
 r = 1
 length = 10
 
@@ -61,10 +61,10 @@ length = 10
 # The product of the two elements of mesh *must* equal the number
 # of cores used.
 # mesh = None
-mesh = [2,2]
+mesh = [14,12]
 
 kappa = 0.01
-mu = 0.1
+mu = 0.05
 eta = 0.001
 rho0 = 1
 gamma = 5./3.
@@ -76,7 +76,9 @@ z = de.SinCos('z', nz, interval=(0,length))
 domain = de.Domain([x,y,z],grid_dtype='float', mesh=mesh)
 
 SSX = de.IVP(domain, variables=['lnrho','T', 'vx', 'vy', 'vz', 'Ax', 'Ay', 'Az', 'phi'])
-
+########################################################################################################
+""" Meta Parameters """
+########################################################################################################
 SSX.meta['T','lnrho']['x', 'y', 'z']['parity'] = 1
 SSX.meta['phi']['x', 'y', 'z']['parity'] = -1
 
@@ -94,13 +96,17 @@ SSX.meta['Ay']['x', 'z']['parity'] = -1
 SSX.meta['Ay']['y']['parity'] = 1
 SSX.meta['Az']['x', 'y']['parity'] = -1
 SSX.meta['Az']['z']['parity'] = 1
-
+########################################################################################################
+""" Parameters """
+########################################################################################################
 SSX.parameters['mu'] = mu
 SSX.parameters['chi'] = kappa/rho0
 SSX.parameters['nu'] = mu/rho0
 SSX.parameters['eta'] = eta
 SSX.parameters['gamma'] = gamma
-
+########################################################################################################
+""" Substitutions """
+########################################################################################################
 SSX.substitutions['divv'] = "dx(vx) + dy(vy) + dz(vz)"
 SSX.substitutions['vdotgrad(A)'] = "vx*dx(A) + vy*dy(A) + vz*dz(A)"
 SSX.substitutions['Bdotgrad(A)'] = "Bx*dx(A) + By*dy(A) + Bz*dz(A)"
@@ -120,7 +126,9 @@ SSX.substitutions['Va_x'] = "Bx/sqrt(rho)"
 SSX.substitutions['Va_y'] = "By/sqrt(rho)"
 SSX.substitutions['Va_z'] = "Bz/sqrt(rho)"
 SSX.substitutions['Cs'] = "sqrt(gamma*T)"
-
+########################################################################################################
+""" Equations """
+########################################################################################################
 # Continuity
 SSX.add_equation("dt(lnrho) + divv = - vdotgrad(lnrho)")
 
@@ -139,64 +147,34 @@ SSX.add_equation("phi = 0", condition="(nx == 0) and (ny == 0) and (nz == 0)")
 
 # Energy
 SSX.add_equation("dt(T) - (gamma - 1) * chi*Lap(T) = - (gamma - 1) * T * divv  - vdotgrad(T) + (gamma - 1)*eta*J2")
-
+########################################################################################################
+""" Solver Setup """
+########################################################################################################
 solver = SSX.build_solver(de.timesteppers.RK443)
-
-# Initial timestep
-dt = 3e-6
 
 # Integration parameters
 solver.stop_sim_time = 50
-solver.stop_wall_time = 60*60*46
+solver.stop_wall_time = 60*60*35
 solver.stop_iteration = np.inf
 
-
-# Initial conditions
-Ax = solver.state['Ax']
-Ay = solver.state['Ay']
-Az = solver.state['Az']
-vx = solver.state['vx']
-vy = solver.state['vy']
-vz = solver.state['vz']
-lnrho = solver.state['lnrho']
-T = solver.state['T']
-phi = solver.state['phi']
+########################################################################################################
+""" Loading Past Simulation """
+########################################################################################################
+write, dt = solver.load_state(['<fileIn>'], -1)
 
 x = domain.grid(0)
 y = domain.grid(1)
 z = domain.grid(2)
 
-#load inital conditions from file
-try:
-    hf = h5py.File(args['<fileIn>'], 'r')
-except IOError:
-    sys.exit("Your input file could not be accessed")
-
-slices = domain.distributor.grid_layout.slices(scales=1)
-
-Ax['g'] = np.array(hf['tasks/Ax'])[-1][slices]
-Ay['g'] = np.array(hf['tasks/Ay'])[-1][slices]
-Az['g'] = np.array(hf['tasks/Az'])[-1][slices]
-vx['g'] = np.array(hf['tasks/vx'])[-1][slices]
-vy['g'] = np.array(hf['tasks/vy'])[-1][slices]
-vz['g'] = np.array(hf['tasks/vz'])[-1][slices]
-lnrho['g'] = np.array(hf['tasks/lnrho'])[-1][slices]
-T['g'] = np.array(hf['tasks/T'])[-1][slices]
-phi['g'] = np.array(hf['tasks/phi'])[-1][slices]
-
-solver.sim_time = hf['scales/sim_time'][-1]
-solver.iteration = hf['scales/iteration'][-1]
-hf.close()
-
 # analysis output
 #data_dir = './'+sys.argv[0].split('.py')[0]
 wall_dt_checkpoints = 60*55
-output_cadence = .25 # This is in simulation time units
+output_cadence = .10 # This is in simulation time units
 
 '''checkpoint = solver.evaluator.add_file_handler('checkpoints2', max_writes=1, wall_dt=wall_dt_checkpoints, mode='overwrite')
 checkpoint.add_system(solver.state, layout='c')'''
 
-field_writes = solver.evaluator.add_file_handler('fields', max_writes=50, sim_dt = output_cadence, mode='overwrite')
+field_writes = solver.evaluator.add_file_handler('fields', max_writes=50, sim_dt = output_cadence, mode='append')
 field_writes.add_task('vx')
 field_writes.add_task('vy')
 field_writes.add_task('vz')
@@ -206,7 +184,7 @@ field_writes.add_task('Bz')
 field_writes.add_task("exp(lnrho)", name='rho')
 field_writes.add_task('T')
 
-load_writes = solver.evaluator.add_file_handler('load_data', max_writes=50, sim_dt = output_cadence, mode='overwrite')
+load_writes = solver.evaluator.add_file_handler('load_data', max_writes=50, sim_dt = output_cadence, mode='append')
 load_writes.add_task('vx')
 load_writes.add_task('vy')
 load_writes.add_task('vz')
@@ -219,8 +197,10 @@ load_writes.add_task('phi')
 
 # Flow properties
 flow = flow_tools.GlobalFlowProperty(solver, cadence=1)
-flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / nu", name='Re')
-flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / sqrt(T)", name='Ma')
+flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / nu", name='Re_k')
+flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / eta)", name = 'Re_m')
+flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / sqrt(T)", name='Ma_k')
+flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / sqrt(Va_x*Va_x + Va_y*Va_y + Va_z*Va_z))", name = 'Ma_m')
 
 
 char_time = 50. # this should be set to a characteristic time in the problem (the alfven crossing time of the tube, for example)
@@ -246,12 +226,16 @@ try:
 
         if (solver.iteration-1) % 1 == 0:
             logger_string = 'iter: {:d}, t/tb: {:.2e}, dt/tb: {:.2e}, sim_time: {:.2e}, dt: {:.2e}'.format(solver.iteration, solver.sim_time/char_time, dt/char_time, solver.sim_time, dt)
-            Re_avg = flow.grid_average('Re')
-            logger_string += ' Max Re = {:.2g}, Avg Re = {:.2g}, Max Ma = {:.1g}'.format(flow.max('Re'), Re_avg, flow.max('Ma'))
+            Re_k_avg = flow.grid_average('Re_k')
+            Re_m_avg = flow.grid_average('Re_m')
+            logger_string += ' Max Re_k = {:.2g}, Avg Re_k = {:.2g}, Max Ma_k = {:.1g}, Max Re_m = {:.2g}, Avg Re_m = {:.2g}, Max Ma_m = {:.1g}'.format(flow.max('Re_k'), Re_k_avg, flow.max('Ma_k'), flow.max('Re_m'), Re_m_avg, flow.max('Ma_m'))
             logger.info(logger_string)
-            if not np.isfinite(Re_avg):
+            if not np.isfinite(Re_k_avg):
                 good_solution = False
-                logger.info("Terminating run.  Trapped on Reynolds = {}".format(Re_avg))
+                logger.info("Terminating run.  Trapped on Kinetic Reynolds = {}".format(Re_k_avg))
+            if not np.isfinite(Re_m_avg):
+                good_solution = False
+                logger.info("Terminating run.  Trapped on Magnetic Reynolds = {}".format(Re_m_avg))
 except:
     logger.error('Exception raised, triggering end of main loop.')
     raise
