@@ -56,7 +56,7 @@ length = 10
 # The product of the two elements of mesh *must* equal the number
 # of cores used.
 # mesh = None
-mesh = [14,12,2]
+mesh = [14,12]
 
 kappa = 0.01
 mu = 0.05
