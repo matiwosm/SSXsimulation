@@ -22,6 +22,7 @@ Moreover, the Dedalus path is specific to this Swarthmore Physics department lap
 
 PYTHONPATH = '/Users/dedalus/dedalus/bin/activate'
 VAPORPATH = '/Applications/VAPOR/VAPOR.app/Contents/MacOS/vapor-setup.sh'
+os.system("source %s" %VAPORPATH)
 
 args = docopt(__doc__)
 try:
