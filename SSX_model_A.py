@@ -46,9 +46,9 @@ logger = logging.getLogger(__name__)
 # for optimal efficiency: nx should be divisible by mesh[0], ny by mesh[1], and
 # nx should be close to ny. Bridges nodes have 28 cores, so mesh[0]*mesh[1]
 # should be a multiple of 28.
-nx = 28
-ny = 24
-nz = 180
+nx = 84
+ny = 72
+nz = 540
 r = 1
 length = 10
 
@@ -56,7 +56,7 @@ length = 10
 # The product of the two elements of mesh *must* equal the number
 # of cores used.
 # mesh = None
-mesh = [2,2]
+mesh = [14,12]
 
 kappa = 0.01
 mu = 0.05
@@ -141,7 +141,7 @@ dt = 1e-4
 
 # Integration parameters
 solver.stop_sim_time = 50
-solver.stop_wall_time = 60*60*46
+solver.stop_wall_time = 60*60*25
 solver.stop_iteration = np.inf
 
 
@@ -156,6 +156,11 @@ vz = solver.state['vz']
 x = domain.grid(0)
 y = domain.grid(1)
 z = domain.grid(2)
+######################################################
+"""
+    I do not believe the two definitions of the fullGrid is needed.
+"""
+######################################################
 fullGrid = x*y*z
 
 fullGrid1 = x*y*z
@@ -172,6 +177,7 @@ Ax['g'] = aa_x
 Ay['g'] = aa_y
 Az['g'] = aa_z
 
+## Initial spheromak velocity
 max_vel = 0.1
 for i in range(x.shape[0]):
     xVal = x[i,0,0]
@@ -180,7 +186,12 @@ for i in range(x.shape[0]):
         for k in range(z.shape[2]):
             zVal = z[0,0,k]
             fullGrid1[i][j][k] = -np.tanh(10*zVal - 2)*max_vel + max_vel
-
+######################################################
+"""
+    Are you giving the velocity to the entire plasma or are you giving it to the spheromak.
+    I say this because this will cause the entire density to move as one, no?
+"""
+######################################################
 vz['g'] = -np.tanh(10*z - 2)*max_vel + max_vel
 
 print(vz['g'][10, 10, :])
@@ -191,7 +202,10 @@ for i in range(x.shape[0]):
         yVal = y[0,j,0]
         for k in range(z.shape[2]):
             zVal = z[0,0,k]
-            if((zVal<=(2*lambda_rho)) and (np.sqrt(xVal**2 + yVal**2)<R)):
+            if (0 <= zVal and zVal < (1 - lambda_rho)):
+                fullGrid[i][j][k] = 1
+                
+            elif(((1 - lambda_rho) <= zVal and zVal < (1 + lambda_rho)) and (np.sqrt(xVal**2 + yVal**2)<R)):
                 fullGrid[i][j][k] = (1 + rho_min)/2 + (1 - rho_min)/2*np.cos(zVal * np.pi/(2*lambda_rho)) #rho_min + rho_min*np.cos(zVal*np.pi/(2*lambda_rho))
             else:
                 fullGrid[i][j][k] = rho_min
@@ -221,6 +235,15 @@ field_writes.add_task('Bz')
 field_writes.add_task("exp(lnrho)", name='rho')
 field_writes.add_task('T')
 
+# I could change the sim_dt to 0.0 such that it only one process occurs.
+parameter_writes = solver.add_file_handler('parameters', max_writes = 1, sim_dt = output_cadence, mode = 'overwrite')
+parameter_writes.add_task('chi')
+parameter_writes.add_task('nu')
+parameter_writes.add_task('mu')
+parameter_writes.add_task('eta')
+parameter_writes.add_task('gamma')
+
+
 load_writes = solver.evaluator.add_file_handler('load_data', max_writes=50, sim_dt = output_cadence, mode='overwrite')
 load_writes.add_task('vx')
 load_writes.add_task('vy')
@@ -235,8 +258,10 @@ load_writes.add_task('phi')
 
 # Flow properties
 flow = flow_tools.GlobalFlowProperty(solver, cadence=1)
-flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / nu", name='Re')
-flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / sqrt(T)", name='Ma')
+flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / nu", name='Re_k')
+flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / eta", name='Re_m')
+flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / sqrt(T)", name='Ma_K')
+flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / sqrt(Va_x*Va_x + Va_y*Va_y + Va_z*Va_z)", name='Ma_A')
 
 
 char_time = 50. # this should be set to a characteristic time in the problem (the alfven crossing time of the tube, for example)
@@ -261,12 +286,16 @@ try:
 
         if (solver.iteration-1) % 1 == 0:
             logger_string = 'iter: {:d}, t/tb: {:.2e}, dt/tb: {:.2e}, time: {:.2e}, dt: {:.2e}'.format(solver.iteration, solver.sim_time/char_time, dt/char_time, solver.sim_time, dt)
-            Re_avg = flow.grid_average('Re')
-            logger_string += ' Max Re = {:.2g}, Avg Re = {:.2g}, Max Ma = {:.1g}'.format(flow.max('Re'), Re_avg, flow.max('Ma'))
+            Re_k_avg = flow.grid_average('Re_k')
+            Re_m_avg = flow.grid_average('Re_m')
+            logger_string += ' Max Re_k = {:.2g}, Avg Re_k = {:.2g}, Max Re_m = {:.2g}, Avg Re_m = {:.2g}, Max Ma_K = {:.1g}, Max Ma_A = {:.1g}'.format(flow.max('Re_k'), Re_k_avg, flow.max('Re_m'), Re_m_avg, flow.max('Ma_K'), flow.max('Ma_A'))
             logger.info(logger_string)
-            if not np.isfinite(Re_avg):
+            if not np.isfinite(Re_k_avg):
                 good_solution = False
-                logger.info("Terminating run.  Trapped on Reynolds = {}".format(Re_avg))
+                logger.info("Terminating run.  Trapped on kinetic Reynolds = {}".format(Re_k_avg))
+            if not np.isfinite(Re_m_avg):
+                good_solution = False
+                logger.info("Terminating run.  Trapped on magnetic Reynolds = {}".format(Re_m_avg))
 except:
     logger.error('Exception raised, triggering end of main loop.')
     raise
