@@ -1,30 +1,30 @@
 """SSX_model_A.py
-    
-    This is the *simplest* model we will consider for modelling spheromaks evolving in the SSX wind tunnel.
-    
-    Major simplificiations fall in two categories
-    
-    Geometry
-    --------
-    We consider a square duct using parity bases (sin/cos) in all directions.
-    
-    Equations
-    ---------
-    The equations themselves are those from Schaffner et al (2014), with the following simplifications
-    
-    * hall term off
-    * constant eta instead of Spitzer
-    * no wall recycling term
-    * no mass diffusion
-    
-    For this first model, rather than kinematic viscosity nu and thermal
-    diffusivitiy chi varying with density rho as they should, we are here
-    holding them *constant*. This dramatically simplifies the form of the
-    equations in Dedalus.
-    
-    We use the vector potential, and enforce the Coulomb Gauge, div(A) = 0.
-    
-    """
+
+This is the *simplest* model we will consider for modelling spheromaks evolving in the SSX wind tunnel.
+
+Major simplificiations fall in two categories
+
+Geometry
+--------
+We consider a square duct using parity bases (sin/cos) in all directions.
+
+Equations
+---------
+The equations themselves are those from Schaffner et al (2014), with the following simplifications
+
+* hall term off
+* constant eta instead of Spitzer
+* no wall recycling term
+* no mass diffusion
+
+For this first model, rather than kinematic viscosity nu and thermal
+diffusivitiy chi varying with density rho as they should, we are here
+holding them *constant*. This dramatically simplifies the form of the
+equations in Dedalus.
+
+We use the vector potential, and enforce the Coulomb Gauge, div(A) = 0.
+
+"""
 
 import os
 import sys
@@ -37,7 +37,7 @@ from dedalus.extras import flow_tools
 from matplotlib import pyplot
 import matplotlib as mpl
 
-from spheromak import spheromak_A
+from two_spheromaks import spheromak_1
 
 import logging
 logger = logging.getLogger(__name__)
@@ -48,25 +48,20 @@ logger = logging.getLogger(__name__)
 # should be a multiple of 28.
 nx = 28
 ny = 24
-nz = 180
+nz = 360
 r = 1
-length = 10
+length = 20
 
 # for 3D runs, you can divide the work up over two dimensions (x and y).
 # The product of the two elements of mesh *must* equal the number
 # of cores used.
 # mesh = None
-mesh = [14,12]
+mesh = [4,2]
 
-# kappa is heat conductivity
 kappa = 0.01
-# mu is viscosity
 mu = 0.05
-# eta is resistivity
 eta = 0.001
-
 rho0 = 1
-# gamma is the adiabatic constant
 gamma = 5./3.
 
 x = de.SinCos('x', nx, interval=(-r, r))
@@ -75,11 +70,8 @@ z = de.SinCos('z', nz, interval=(0,length))
 
 domain = de.Domain([x,y,z],grid_dtype='float', mesh=mesh)
 
-
 SSX = de.IVP(domain, variables=['lnrho','T', 'vx', 'vy', 'vz', 'Ax', 'Ay', 'Az', 'phi'])
-###########################################################################################################################################
-#-----------------------------------------------Meta_Parameters---------------------------------------------------------------------------#
-###########################################################################################################################################
+
 SSX.meta['T','lnrho']['x', 'y', 'z']['parity'] = 1
 SSX.meta['phi']['x', 'y', 'z']['parity'] = -1
 
@@ -96,21 +88,13 @@ SSX.meta['Ay']['x', 'z']['parity'] = -1
 SSX.meta['Ay']['y']['parity'] = 1
 SSX.meta['Az']['x', 'y']['parity'] = -1
 SSX.meta['Az']['z']['parity'] = 1
-#########################################################################################################################################
-#-----------------------------------------------Parameters------------------------------------------------------------------------------#
-#########################################################################################################################################
+
 SSX.parameters['mu'] = mu
-# chi is normalized thermal diffusivity
 SSX.parameters['chi'] = kappa/rho0
-# nu normalized viscosity
 SSX.parameters['nu'] = mu/rho0
-# eta is resistivity
 SSX.parameters['eta'] = eta
-# gamma is the adiabatic constant
 SSX.parameters['gamma'] = gamma
-###########################################################################################################################################
-#-----------------------------------------------Substitutions-----------------------------------------------------------------------------#
-###########################################################################################################################################
+
 SSX.substitutions['divv'] = "dx(vx) + dy(vy) + dz(vz)"
 SSX.substitutions['vdotgrad(A)'] = "vx*dx(A) + vy*dy(A) + vz*dz(A)"
 SSX.substitutions['Bdotgrad(A)'] = "Bx*dx(A) + By*dy(A) + Bz*dz(A)"
@@ -130,43 +114,34 @@ SSX.substitutions['Va_x'] = "Bx/sqrt(rho)"
 SSX.substitutions['Va_y'] = "By/sqrt(rho)"
 SSX.substitutions['Va_z'] = "Bz/sqrt(rho)"
 SSX.substitutions['Cs'] = "sqrt(gamma*T)"
-########################################################################################################################################
-#-----------------------------------------------Equations------------------------------------------------------------------------------#
-########################################################################################################################################
+
 # Continuity
-SSX.add_equation("dt(lnrho) + divv = -vdotgrad(lnrho)")
+SSX.add_equation("dt(lnrho) + divv = - vdotgrad(lnrho)")
 
 # Momentum
-SSX.add_equation("dt(vx) + dx(T) - nu*Lap(vx) = T*dx(rho) - vdotgrad(vx) + (jy*Bz - jz*By)/rho")
-SSX.add_equation("dt(vy) + dy(T) - nu*Lap(vy) = T*dy(rho) - vdotgrad(vy) + (jz*Bx - jx*Bz)/rho")
-SSX.add_equation("dt(vz) + dz(T) - nu*Lap(vz) = T*dz(rho) - vdotgrad(vz) + (jx*By - jy*Bx)/rho")
+SSX.add_equation("dt(vx) + dx(T) - nu*Lap(vx) = T*dx(lnrho) - vdotgrad(vx) + (jy*Bz - jz*By)/rho")
+SSX.add_equation("dt(vy) + dy(T) - nu*Lap(vy) = T*dy(lnrho) - vdotgrad(vy) + (jz*Bx - jx*Bz)/rho")
+SSX.add_equation("dt(vz) + dz(T) - nu*Lap(vz) = T*dz(lnrho) - vdotgrad(vz) + (jx*By - jy*Bx)/rho")
 
 # MHD equations: A
-# Resistive Ohm's Law: A-form
 SSX.add_equation("dt(Ax) + eta*jx + dx(phi) = vy*Bz - vz*By")
 SSX.add_equation("dt(Ay) + eta*jy + dy(phi) = vz*Bx - vx*Bz")
 SSX.add_equation("dt(Az) + eta*jz + dz(phi) = vx*By - vy*Bx")
-# Coulomb Gauge for A
-# Away from walls
 SSX.add_equation("dx(Ax) + dy(Ay) + dz(Az) = 0", condition="(nx != 0) or (ny != 0) or (nz != 0)")
-# Density condition at the orgin
-# Electric Potential at the walls
 SSX.add_equation("phi = 0", condition="(nx == 0) and (ny == 0) and (nz == 0)")
 
 
 # Energy
 SSX.add_equation("dt(T) - (gamma - 1) * chi*Lap(T) = - (gamma - 1) * T * divv  - vdotgrad(T) + (gamma - 1)*eta*J2")
-##########################################################################################################################################
-#-----------------------------------------------Solver_Setup-----------------------------------------------------------------------------#
-##########################################################################################################################################
+
 solver = SSX.build_solver(de.timesteppers.RK443)
-logger.info('Solver built')
+
 # Initial timestep
 dt = 1e-4
 
 # Integration parameters
-solver.stop_sim_time = 50
-solver.stop_wall_time = 60*60*8
+solver.stop_sim_time = 10
+solver.stop_wall_time = 60*60*6
 solver.stop_iteration = np.inf
 
 
@@ -183,41 +158,40 @@ y = domain.grid(1)
 z = domain.grid(2)
 fullGrid = x*y*z
 
+fullGrid1 = x*y*z
 # Initial condition parameters
 R = r
 L = R
 lambda_rho = 0.4 # half-width of transition region for initial conditions
 rho_min = 0.011
 T0 = 0.1
-##########################################################################################################################################
-#-----------------------------------------------Spheromak Initial Conditions-------------------------------------------------------------#
-##########################################################################################################################################
+
 ## Spheromak initial condition
-aa_x, aa_y, aa_z = spheromak_A(domain, center=(0,0, 0), R=R, L=L)
+aa_x, aa_y, aa_z = spheromak_1(domain)
 # The vector potential is subject to some perturbation.
 Ax['g'] = aa_x*(1 + 0.5*x*np.exp(-z**2))
 Ay['g'] = aa_y*(1 + 0.5*x*np.exp(-z**2))
 Az['g'] = aa_z*(1 + 0.5*x*np.exp(-z**2))
 
 max_vel = 0.1
-vz['g'] = -np.tanh(8*z - 15)*max_vel/2 + max_vel/2
+vz['g'] = -np.tanh(8*z - 15)*max_vel/2 + -np.tanh(8*z - 145)*max_vel/2
 
 
-# Plasma number density initialization.
 for i in range(x.shape[0]):
     xVal = x[i,0,0]
     for j in range(y.shape[1]):
         yVal = y[0,j,0]
         for k in range(z.shape[2]):
             zVal = z[0,0,k]
-            if(zVal <= 1- lambda_rho):
-                fullGrid[i][j][k] = 1
-            elif(zVal<=1+lambda_rho and zVal >= 1-lambda_rho and (np.sqrt(xVal**2 + yVal**2)<R)):
-                fullGrid[i][j][k] = (1 + rho_min)/2 + (1 - rho_min)/2*np.sin((1-zVal) * np.pi/(2*lambda_rho)) #rho_min + rho_min*np.cos(zVal*np.pi/(2*lambda_rho))
+            if((zVal<=(2*lambda_rho)) and (np.sqrt(xVal**2 + yVal**2)<R)):
+                fullGrid[i][j][k] = (1 + rho_min)/2 + (1 - rho_min)/2*np.cos(zVal * np.pi/(2*lambda_rho))
+            elif((20-zVal<=(2*lambda_rho)) and (np.sqrt(xVal**2 + yVal**2)<R)):
+                fullGrid[i][j][k] = (1 + rho_min)/2 + (1 - rho_min)/2*np.cos(zVal-20 * np.pi/(2*lambda_rho))
+                if(np.cos(-zVal+20 * np.pi/(2*lambda_rho)) == 0):
+                    print(np.cos(-zVal+20 * np.pi/(2*lambda_rho)))
             else:
                 fullGrid[i][j][k] = rho_min
-
-
+                
 rho0 = domain.new_field()
 rho0['g'] = fullGrid
 
@@ -228,10 +202,10 @@ T['g'] = T0 * rho0['g']**(gamma - 1)
 # analysis output
 #data_dir = './'+sys.argv[0].split('.py')[0]
 wall_dt_checkpoints = 60*55
-output_cadence = .05 # This is in simulation time units
+output_cadence = .25 # This is in simulation time units
 
 '''checkpoint = solver.evaluator.add_file_handler('checkpoints2', max_writes=1, wall_dt=wall_dt_checkpoints, mode='overwrite')
-    checkpoint.add_system(solver.state, layout='c')'''
+checkpoint.add_system(solver.state, layout='c')'''
 
 field_writes = solver.evaluator.add_file_handler('fields', max_writes=50, sim_dt = output_cadence, mode='overwrite')
 field_writes.add_task('vx')
@@ -262,7 +236,6 @@ load_writes.add_task('T')
 load_writes.add_task('phi')
 
 
-
 # Flow properties
 flow = flow_tools.GlobalFlowProperty(solver, cadence=1)
 flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / nu", name='Re_k')
@@ -290,7 +263,7 @@ try:
     while solver.ok and good_solution:
         dt = CFL.compute_dt()
         solver.step(dt)
-        
+
         if (solver.iteration-1) % 1 == 0:
             logger_string = 'iter: {:d}, t/tb: {:.2e}, dt/tb: {:.2e}, sim_time: {:.4e}, dt: {:.2e}'.format(solver.iteration, solver.sim_time/char_time, dt/char_time, solver.sim_time, dt)
             Re_k_avg = flow.grid_average('Re_k')
@@ -314,5 +287,3 @@ finally:
     logger.info('Run time: %.2f sec' %(end_time-start_time))
     logger.info('Run time: %f cpu-hr' %((end_time-start_time)/60/60*domain.dist.comm_cart.size))
     logger.info('Iter/sec: {:g}'.format(solver.iteration/(end_time-start_time)))
-
-
