@@ -29,10 +29,14 @@
 import os
 import sys
 import time
+import pathlib
 import numpy as np
+
 
 import dedalus.public as de
 from dedalus.extras import flow_tools
+
+from configparser import ConfigParser
 
 from matplotlib import pyplot
 import matplotlib as mpl
@@ -42,6 +46,10 @@ from spheromak import spheromak_A
 import logging
 logger = logging.getLogger(__name__)
 
+runconfig = ConfigParser()
+config_file = pathlib.Path(sys.argv[-1])
+runconfig.read(str(config_file))
+logger.info("Using config file {}".format(config_file))
 
 # for optimal efficiency: nx should be divisible by mesh[0], ny by mesh[1], and
 # nx should be close to ny. Bridges nodes have 28 cores, so mesh[0]*mesh[1]
