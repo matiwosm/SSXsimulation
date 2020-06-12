@@ -56,18 +56,20 @@ logger.info("Using config file {}".format(config_file))
 # for optimal efficiency: nx should be divisible by mesh[0], ny by mesh[1], and
 # nx should be close to ny. Bridges nodes have 28 cores, so mesh[0]*mesh[1]
 # should be a multiple of 28.
-nx = 28
-ny = 24
-nz = 180
-r = 1
-length = 10
+# Domain Setup
+domain_setup = runconfig['domain']
+nx = domain_setup.getint('nx')
+ny = domain_setup.getint('ny')
+nz = domain_setup.getint('nz')
+r = domain_setup.getint('r')
+length = domain_setup.getint('length')
 
 # for 3D runs, you can divide the work up over two dimensions (x and y).
 # The product of the two elements of mesh *must* equal the number
 # of cores used.
 # mesh = None
 mesh = [14,12]
-
+params = runconfig['params']
 # kappa is heat conductivity
 kappa = 0.01
 # mu is viscosity
