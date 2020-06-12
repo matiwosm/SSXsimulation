@@ -23,6 +23,8 @@
     equations in Dedalus.
     
     We use the vector potential, and enforce the Coulomb Gauge, div(A) = 0.
+    Usage:
+    SSX_model_A.py  <config_file>
     
     """
 
