@@ -71,15 +71,15 @@ length = domain_setup.getint('length')
 mesh = [14,12]
 params = runconfig['params']
 # kappa is heat conductivity
-kappa = 0.01
+kappa = params.getfloat('kappa')
 # mu is viscosity
-mu = 0.05
+mu = params.getfloat('mu')
 # eta is resistivity
-eta = 0.001
+eta = params.getfloat('eta')
 
-rho0 = 1
+rho0 = params.getfloat('rho0')
 # gamma is the adiabatic constant
-gamma = 5./3.
+gamma = params.getfloat('gamma')
 
 x = de.SinCos('x', nx, interval=(-r, r))
 y = de.SinCos('y', ny, interval=(-r, r))
@@ -173,13 +173,24 @@ SSX.add_equation("dt(T) - (gamma - 1) * chi*Lap(T) = - (gamma - 1) * T * divv  -
 ##########################################################################################################################################
 solver = SSX.build_solver(de.timesteppers.RK443)
 logger.info('Solver built')
+
+run = runconfig['run']
 # Initial timestep
-dt = 1e-4
+dt = run.getfloat('dt')
 
 # Integration parameters
-solver.stop_sim_time = 50
-solver.stop_wall_time = 60*60*8
-solver.stop_iteration = np.inf
+if run.getfloat(stop_sim_time):
+    solver.stop_sim_time = run.getfloat(stop_sim_time)
+else:
+    solver.stop_sim_time = np.inf
+if run.getfloat(stop_wall_time):
+    solver.stop_wall_time = run.getfloat(stop_wall_time)
+else:
+    solver.stop_wall_time = np.inf
+if run.getfloat(stop_iteration):
+    solver.stop_iteration = run.getfloat(stop_iteration)
+else:
+    solver.stop_iteration = np.inf
 
 
 # Initial conditions
@@ -196,11 +207,13 @@ z = domain.grid(2)
 fullGrid = x*y*z
 
 # Initial condition parameters
+initial = runconfig['initial]
 R = r
 L = R
-lambda_rho = 0.4 # half-width of transition region for initial conditions
-rho_min = 0.011
-T0 = 0.1
+#lambda_rho = 0.4 # half-width of transition region for initial conditions
+lambda_rho = initial.getfloat('lambda_rho')
+rho_min = initial.getfloat('rho_min')
+T0 = initial.getfloat('T0')
 ##########################################################################################################################################
 #-----------------------------------------------Spheromak Initial Conditions-------------------------------------------------------------#
 ##########################################################################################################################################
@@ -211,7 +224,9 @@ Ax['g'] = aa_x*(1 + 0.5*x*np.exp(-z**2))
 Ay['g'] = aa_y*(1 + 0.5*x*np.exp(-z**2))
 Az['g'] = aa_z*(1 + 0.5*x*np.exp(-z**2))
 
-max_vel = 0.1
+limits = runconfig['limits']
+max_vel = limits.getfloat('max_vel')
+
 vz['g'] = -np.tanh(8*z - 15)*max_vel/2 + max_vel/2
 
 
@@ -239,13 +254,15 @@ T['g'] = T0 * rho0['g']**(gamma - 1)
 
 # analysis output
 #data_dir = './'+sys.argv[0].split('.py')[0]
-wall_dt_checkpoints = 60*55
-output_cadence = .05 # This is in simulation time units
+file_handling = runconfig['file_handling']
+wall_dt_checkpoints = file_handling.getfloat('wall_dt_checkpoints')  
+output_cadence = file_handling.getfloat('output_cadence')  # This is in simulation time units
+#output_cadence = .05 # This is in simulation time units
 
 '''checkpoint = solver.evaluator.add_file_handler('checkpoints2', max_writes=1, wall_dt=wall_dt_checkpoints, mode='overwrite')
     checkpoint.add_system(solver.state, layout='c')'''
-
-field_writes = solver.evaluator.add_file_handler('fields', max_writes=50, sim_dt = output_cadence, mode='overwrite')
+field_max_writes = file_handling.getint('field_max_writes')
+field_writes = solver.evaluator.add_file_handler('fields', max_writes=field_max_writes, sim_dt = output_cadence, mode='overwrite')
 field_writes.add_task('vx')
 field_writes.add_task('vy')
 field_writes.add_task('vz')
@@ -255,14 +272,16 @@ field_writes.add_task('Bz')
 field_writes.add_task("exp(lnrho)", name='rho')
 field_writes.add_task('T')
 
-parameter_writes = solver.evaluator.add_file_handler('parameters', max_writes=1, sim_dt=output_cadence, mode='overwrite')
+parameter_max_writes = file_handling.getint('parameter_max_writes')
+parameter_writes = solver.evaluator.add_file_handler('parameters', max_writes=parameter_max_writes, sim_dt=output_cadence, mode='overwrite')
 parameter_writes.add_task('mu')
 parameter_writes.add_task('eta')
 parameter_writes.add_task('nu')
 parameter_writes.add_task('chi')
 parameter_writes.add_task('gamma')
 
-load_writes = solver.evaluator.add_file_handler('load_data', max_writes=50, sim_dt = output_cadence, mode='overwrite')
+load_max_writes = file_handling.getint('load_max_writes')
+load_writes = solver.evaluator.add_file_handler('load_data', max_writes=load_max_writes, sim_dt = output_cadence, mode='overwrite')
 load_writes.add_task('vx')
 load_writes.add_task('vy')
 load_writes.add_task('vz')
@@ -276,15 +295,17 @@ load_writes.add_task('phi')
 
 
 # Flow properties
+cfl_params = runconfig[cfl_params]
+
 flow = flow_tools.GlobalFlowProperty(solver, cadence=1)
 flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / nu", name='Re_k')
 flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / eta", name='Re_m')
 flow.add_property("sqrt(vx*vx + vy*vy + vz*vz)", name='flow_speed')
 flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / sqrt(T)", name='Ma')
 
+char_time = cfl_params.getfloat('char_time')
+CFL_safety = cfl_params.getfloat('cfl_safety') # this should be set to a characteristic time in the problem (the alfven crossing time of the tube, for example)
 
-char_time = 50. # this should be set to a characteristic time in the problem (the alfven crossing time of the tube, for example)
-CFL_safety = 0.3
 CFL = flow_tools.CFL(solver, initial_dt=dt, cadence=1, safety=CFL_safety,
                      max_change=1.5, min_change=0.5, max_dt=output_cadence, threshold=0.05)
 CFL.add_velocities(('vx', 'vy', 'vz'))
