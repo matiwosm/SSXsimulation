@@ -179,16 +179,16 @@ run = runconfig['run']
 dt = run.getfloat('dt')
 
 # Integration parameters
-if run.getfloat(stop_sim_time):
-    solver.stop_sim_time = run.getfloat(stop_sim_time)
+if run.getfloat('stop_sim_time'):
+    solver.stop_sim_time = run.getfloat('stop_sim_time')
 else:
     solver.stop_sim_time = np.inf
-if run.getfloat(stop_wall_time):
-    solver.stop_wall_time = run.getfloat(stop_wall_time)
+if run.getfloat('stop_wall_time'):
+    solver.stop_wall_time = run.getfloat('stop_wall_time')
 else:
     solver.stop_wall_time = np.inf
-if run.getfloat(stop_iteration):
-    solver.stop_iteration = run.getfloat(stop_iteration)
+if run.getfloat('stop_iteration'):
+    solver.stop_iteration = run.getfloat('stop_iteration')
 else:
     solver.stop_iteration = np.inf
 
@@ -207,7 +207,7 @@ z = domain.grid(2)
 fullGrid = x*y*z
 
 # Initial condition parameters
-initial = runconfig['initial]
+initial = runconfig['initial']
 R = r
 L = R
 #lambda_rho = 0.4 # half-width of transition region for initial conditions
@@ -295,7 +295,7 @@ load_writes.add_task('phi')
 
 
 # Flow properties
-cfl_params = runconfig[cfl_params]
+cfl_params = runconfig['cfl_params']
 
 flow = flow_tools.GlobalFlowProperty(solver, cadence=1)
 flow.add_property("sqrt(vx*vx + vy*vy + vz*vz) / nu", name='Re_k')
