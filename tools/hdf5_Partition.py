@@ -96,7 +96,6 @@ def partition_Structure(index, h5file1, h5file2):
             name = h5file1[key].name
             group_Path = dataset_Group_Name(name, key)
             dtype = h5file1[key].dtype
-            #atts = h5file1[key].attrs
             shape = h5file1[key].shape
             maxshape = h5file1[key].maxshape
             chunks = h5file1[key].chunks
