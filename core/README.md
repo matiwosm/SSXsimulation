@@ -1,4 +1,4 @@
-## Basic Files
+## Batch Files
 * dedalusBatch.job
 * loadBatch.job
 ## Field Initialization
