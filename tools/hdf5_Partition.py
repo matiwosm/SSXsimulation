@@ -7,11 +7,11 @@ import numpy as np
 import h5py as h5
 import pathlib
 import sys
-#############################################################################
+#########################################################################################
 """
-    The purpose of this script is to copy and partition hdf5 files
+    The purpose of this script is to copy and partition hdf5 files in the dedalus format
 """
-#############################################################################
+#########################################################################################
 def descend_obj(obj,sep = '\t'):
     """
     Iterate through groups in a HDF5 file and prints the groups and datasets names and datasets attributes
