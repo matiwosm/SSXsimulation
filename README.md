@@ -3,4 +3,4 @@ Dedalus Simulations: Bridges, XSEDE
 Repo Goals:
 * Contain the minimum dedalus spheromak simulations.
 * Contain auxiliary python scripts.
-* Contain updated dedalus insallation on Bridges.
+* Contain updated dedalus insallation instructions on Bridges.
