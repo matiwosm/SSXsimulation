@@ -11,7 +11,9 @@ set -x
 export I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0
 
 #activate dedalus
-source /home/cacsphys/dedalus/bin/activate
+#source /home/cacsphys/dedalus/bin/activate
+conda activate base 
+conda activate dedalus
 
 #run mpi program
 cd /pylon5/ph5phjp/cacsphys
